@@ -1,15 +1,14 @@
-// user2.cpp — Connects to user1 at <ip> <port>, then starts SENDING first.
-// Type lines; end your turn with "#" (exact line). Type "Exit" (exact line) to end.
-
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
 #include <cerrno>
+#include <chrono>
 #include <cstring>
 #include <iostream>
 #include <string>
+#include <thread>
 
 enum class Mode { SENDING, RECEIVING, DONE };
 
@@ -19,6 +18,7 @@ static bool sendAll(int fd, const char* buf, size_t len) {
         ssize_t n = ::send(fd, buf + sent, len - sent, 0);
         if (n < 0) {
             if (errno == EINTR) continue;
+            perror("send");
             return false;
         }
         if (n == 0) return false;
@@ -30,7 +30,10 @@ static bool sendAll(int fd, const char* buf, size_t len) {
 static bool sendLine(int fd, const std::string& s) {
     std::string line = s;
     if (line.empty() || line.back() != '\n') line.push_back('\n');
-    return sendAll(fd, line.c_str(), line.size());
+    bool ok = sendAll(fd, line.c_str(), line.size());
+    ::fsync(fd); // ensure flush
+    std::this_thread::sleep_for(std::chrono::milliseconds(20)); // tiny delay for iPad shells
+    return ok;
 }
 
 static bool recvLine(int fd, std::string& out) {
@@ -84,10 +87,9 @@ int main(int argc, char** argv) {
     int sock = connectTo(ip, port);
     if (sock < 0) return 2;
 
-    Mode mode = Mode::SENDING; // per spec, user2 talks first
-    bool sentExit = false;
-
-    std::cout << "[user2] You will SEND first. Type lines; end your turn with '#'. Type 'Exit' to finish.\n";
+    Mode mode = Mode::SENDING;
+    std::cout << "[user2] You will SEND first. Each line is a message.\n"
+              << "[user2] Type '#' alone on a line to end your turn. Type 'Exit' to quit.\n";
 
     while (true) {
         if (mode == Mode::SENDING) {
@@ -98,12 +100,7 @@ int main(int argc, char** argv) {
             }
             if (my == "Exit") {
                 sendLine(sock, "Exit");
-                sentExit = true;
-                // Expect Exit echo (or peer may close)
-                std::string echo;
-                if (recvLine(sock, echo) && echo == "Exit") {
-                    std::cout << "[peer] Exit\n";
-                }
+                std::cout << "[user2] Sent Exit — closing.\n";
                 break;
             } else if (my == "#") {
                 sendLine(sock, "#");
@@ -113,17 +110,18 @@ int main(int argc, char** argv) {
                 if (!sendLine(sock, my)) {
                     std::cout << "[user2] Send failed.\n";
                     break;
+                } else {
+                    std::cout << "[user2] Sent: " << my << "\n";
                 }
             }
-        } else { // RECEIVING
+        } else {
             std::string line;
             if (!recvLine(sock, line)) {
-                std::cout << "[user2] Connection closed or error.\n";
+                std::cout << "[user2] Connection closed.\n";
                 break;
             }
             if (line == "Exit") {
                 std::cout << "[peer] Exit\n";
-                // Reply Exit and end
                 sendLine(sock, "Exit");
                 break;
             } else if (line == "#") {
