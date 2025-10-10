@@ -1,10 +1,10 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
 #include <cerrno>
-#include <chrono>
 #include <cstring>
 #include <iostream>
 #include <string>
@@ -31,8 +31,6 @@ static bool sendLine(int fd, const std::string& s) {
     std::string line = s;
     if (line.empty() || line.back() != '\n') line.push_back('\n');
     bool ok = sendAll(fd, line.c_str(), line.size());
-    ::fsync(fd); // ensure flush
-    std::this_thread::sleep_for(std::chrono::milliseconds(20)); // tiny delay for iPad shells
     return ok;
 }
 
@@ -43,6 +41,7 @@ static bool recvLine(int fd, std::string& out) {
         ssize_t n = ::recv(fd, &ch, 1, 0);
         if (n < 0) {
             if (errno == EINTR) continue;
+            perror("recv");
             return false;
         }
         if (n == 0) return false; // peer closed
@@ -72,6 +71,13 @@ static int connectTo(const std::string& ip, uint16_t port) {
         ::close(s);
         return -1;
     }
+    // Disable Nagle to reduce latency for small chat messages
+    int one = 1;
+    if (setsockopt(s, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one)) < 0) {
+        perror("setsockopt(TCP_NODELAY)");
+        // non-fatal
+    }
+
     std::cout << "[user2] Connected.\n";
     return s;
 }

@@ -5,6 +5,7 @@
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -87,6 +88,13 @@ static int listenOnce(uint16_t port) {
     char ipbuf[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &peer.sin_addr, ipbuf, sizeof(ipbuf));
     std::cout << "[user1] Connected to " << ipbuf << ":" << ntohs(peer.sin_port) << "\n";
+
+    // Disable Nagle on the accepted socket to reduce latency for small messages
+    int one = 1;
+    if (setsockopt(c, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one)) < 0) {
+        perror("setsockopt(TCP_NODELAY)");
+        // non-fatal, continue
+    }
 
     ::close(s); // no more accepts; single peer only
     return c;
