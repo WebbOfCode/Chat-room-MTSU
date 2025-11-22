@@ -1,7 +1,9 @@
-// user1.cpp — Listens on a port, accepts exactly one connection, then:
-// 1) RECEIVE until it gets "#"   → then you talk
-// 2) SEND from stdin until "#"   → then peer talks
-// Either side may send "Exit" (exact line) to end; the other side replies "Exit" and both close.
+// user1.cpp
+// Minimal single-connection chat server:
+//  - Accept one TCP client.
+//  - Peer talks first until it sends '#'. Then you talk until you send '#'.
+//  - Either side can send "Exit" to end politely.
+// Human-style comments added for clarity.
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -14,8 +16,11 @@
 #include <iostream>
 #include <string>
 
-enum class Mode { SENDING, RECEIVING, DONE };
+using namespace std; // Requested: use std globally for this simple file
 
+enum class Mode { SENDING, RECEIVING, DONE }; // states of the turn-taking protocol
+
+// sendAll: keep calling send until all bytes are written or error
 static bool sendAll(int fd, const char* buf, size_t len) {
     size_t sent = 0;
     while (sent < len) {
@@ -30,13 +35,15 @@ static bool sendAll(int fd, const char* buf, size_t len) {
     return true;
 }
 
-static bool sendLine(int fd, const std::string& s) {
-    std::string line = s;
+// sendLine: ensure the outgoing message terminates with a newline
+static bool sendLine(int fd, const string& s) {
+    string line = s;
     if (line.empty() || line.back() != '\n') line.push_back('\n');
     return sendAll(fd, line.c_str(), line.size());
 }
 
-static bool recvLine(int fd, std::string& out) {
+// recvLine: read characters until newline. Returns false on error/closure.
+static bool recvLine(int fd, string& out) {
     out.clear();
     char ch;
     while (true) {
@@ -57,6 +64,7 @@ static bool recvLine(int fd, std::string& out) {
     return true;
 }
 
+// listenOnce: bind, listen and accept ONE connection. Returns connected socket or -1.
 static int listenOnce(uint16_t port) {
     int s = ::socket(AF_INET, SOCK_STREAM, 0);
     if (s < 0) { perror("socket"); return -1; }
@@ -78,7 +86,7 @@ static int listenOnce(uint16_t port) {
         perror("listen"); ::close(s); return -1;
     }
 
-    std::cout << "[user1] Listening on port " << port << " ...\n[user1] Waiting for user2 to connect...\n";
+    cout << "[user1] Listening on port " << port << " ...\n[user1] Waiting for peer...\n";
 
     sockaddr_in peer{};
     socklen_t plen = sizeof(peer);
@@ -87,7 +95,7 @@ static int listenOnce(uint16_t port) {
 
     char ipbuf[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &peer.sin_addr, ipbuf, sizeof(ipbuf));
-    std::cout << "[user1] Connected to " << ipbuf << ":" << ntohs(peer.sin_port) << "\n";
+    cout << "[user1] Connected to " << ipbuf << ":" << ntohs(peer.sin_port) << "\n";
 
     // Disable Nagle on the accepted socket to reduce latency for small messages
     int one = 1;
@@ -102,10 +110,10 @@ static int listenOnce(uint16_t port) {
 
 int main(int argc, char** argv) {
     if (argc != 2) {
-        std::cerr << "Usage: ./user1 <port>\n";
+        cerr << "Usage: ./user1 <port>\n";
         return 1;
-   }
-    uint16_t port = static_cast<uint16_t>(std::stoi(argv[1]));
+    }
+    uint16_t port = static_cast<uint16_t>(stoi(argv[1]));
     int sock = listenOnce(port);
     if (sock < 0) return 2;
 
@@ -113,29 +121,29 @@ int main(int argc, char** argv) {
     bool done = false;
     bool sentExit = false;
 
-    std::cout << "[user1] You will RECEIVE first. Peer will type until '#'.\n";
+    cout << "[user1] RECEIVE first. Peer ends turn with '#'.\n";
 
     while (!done) {
         if (mode == Mode::RECEIVING) {
-            std::string line;
+            string line;
             if (!recvLine(sock, line)) {
-                std::cout << "[user1] Connection closed or error.\n";
+                cout << "[user1] Connection closed or error.\n";
                 break;
             }
             if (line == "Exit") {
-                std::cout << "[peer] Exit\n";
+                cout << "[peer] Exit\n";
                 // Reply Exit and end
                 sendLine(sock, "Exit");
                 break;
             } else if (line == "#") {
-                std::cout << "[peer] #  (Your turn to send. Type lines; end your turn with '#'. Type 'Exit' to finish.)\n";
+                cout << "[peer] #  (Your turn. End with '#'. Type 'Exit' any time.)\n";
                 mode = Mode::SENDING;
             } else {
-                std::cout << "[peer] " << line << "\n";
+                cout << "[peer] " << line << "\n";
             }
         } else if (mode == Mode::SENDING) {
-            std::string my;
-            if (!std::getline(std::cin, my)) {
+            string my;
+            if (!getline(cin, my)) {
                 // EOF on stdin → be polite and exit
                 sendLine(sock, "Exit");
                 break;
@@ -144,18 +152,18 @@ int main(int argc, char** argv) {
                 sendLine(sock, "Exit");
                 sentExit = true;
                 // Wait for peer Exit echo then close (or peer may close immediately)
-                std::string echo;
+                string echo;
                 if (recvLine(sock, echo) && echo == "Exit") {
-                    std::cout << "[peer] Exit\n";
+                    cout << "[peer] Exit\n";
                 }
                 break;
             } else if (my == "#") {
                 sendLine(sock, "#");
-                std::cout << "[user1] Turn ended. Waiting for peer…\n";
+                cout << "[user1] Turn ended. Waiting for peer…\n";
                 mode = Mode::RECEIVING;
             } else {
                 if (!sendLine(sock, my)) {
-                    std::cout << "[user1] Send failed.\n";
+                    cout << "[user1] Send failed.\n";
                     break;
                 }
             }
@@ -165,6 +173,6 @@ int main(int argc, char** argv) {
     }
 
     ::close(sock);
-    std::cout << "[user1] Session ended.\n";
+    cout << "[user1] Session ended.\n";
     return 0;
 }
