@@ -6,9 +6,8 @@
 #include <wx/socket.h>
 #include <wx/listctrl.h>
 #include <map>
-// Removed <vector>, <sstream> (unused)
-
-using namespace std; // allow map without std::
+// Minimal broadcast server; remove per-client sending logic.
+// No global using-directive for std; qualify explicitly.
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -44,7 +43,6 @@ private:
     
     void AcceptConnection();
     void HandleSocketInput(wxSocketBase* sock);
-    void SendMessageToClient(int clientId, const wxString& message);
     void BroadcastMessage(const wxString& message);
     void RemoveClient(wxSocketBase* sock);
     void LogMessage(const wxString& message);
@@ -56,9 +54,8 @@ private:
     wxListCtrl* m_clientList;
     
     wxSocketServer* m_server;
-    map<wxSocketBase*, ClientInfo> m_clients; // active clients keyed by socket
+    std::map<wxSocketBase*, ClientInfo> m_clients; // active clients keyed by socket
     int m_nextClientId;
-    int m_selectedClientId;
     int m_port;
     
     wxDECLARE_EVENT_TABLE();
@@ -85,8 +82,8 @@ wxBEGIN_EVENT_TABLE(ChatFrame, wxFrame)
 wxEND_EVENT_TABLE()
 
 ChatFrame::ChatFrame(const wxString& title, int port)
-    : wxFrame(nullptr, wxID_ANY, title, wxDefaultPosition, wxSize(800, 600)),
-      m_nextClientId(1), m_selectedClientId(-1), m_port(port) {
+        : wxFrame(nullptr, wxID_ANY, title, wxDefaultPosition, wxSize(800, 600)),
+            m_nextClientId(1), m_port(port) {
     
     // Create menu bar
     wxMenu* menuFile = new wxMenu;
@@ -194,34 +191,13 @@ void ChatFrame::OnSendMessage(wxCommandEvent& event) {
     if (message.IsEmpty()) {
         return;
     }
-    
-    if (event.GetId() == ID_Broadcast || event.GetEventType() == wxEVT_TEXT_ENTER) {
-        // Broadcast to all clients
-        if (m_clients.empty()) {
-            LogMessage("No clients connected to send message to.");
-        } else {
-            BroadcastMessage(message);
-            LogMessage("[You -> ALL] " + message);
-        }
+    // Always broadcast regardless of which button was pressed or Enter.
+    if (m_clients.empty()) {
+        LogMessage("No clients connected to send message to.");
     } else {
-        // Send to selected client
-        if (m_selectedClientId == -1) {
-            LogMessage("Please select a client from the list first.");
-            return;
-        }
-        SendMessageToClient(m_selectedClientId, message);
-        
-        // Find client name
-        wxString clientName;
-        for (const auto& pair : m_clients) {
-            if (pair.second.id == m_selectedClientId) {
-                clientName = pair.second.name;
-                break;
-            }
-        }
-        LogMessage("[You -> " + clientName + "] " + message);
+        BroadcastMessage("[Server] " + message);
+        LogMessage("[Server] " + message);
     }
-    
     m_messageInput->Clear();
 }
 
@@ -249,13 +225,9 @@ void ChatFrame::OnSocketEvent(wxSocketEvent& event) {
 }
 
 void ChatFrame::OnClientSelected(wxListEvent& event) {
+    // Selection retained for UI consistency; no per-client send.
     long index = event.GetIndex();
-    wxString idStr = m_clientList->GetItemText(index, 0);
-    long id;
-    if (idStr.ToLong(&id)) {
-        m_selectedClientId = static_cast<int>(id);
-        LogMessage("Selected client: " + m_clientList->GetItemText(index, 1));
-    }
+    LogMessage("Selected: " + m_clientList->GetItemText(index, 1));
 }
 
 void ChatFrame::AcceptConnection() {
@@ -309,22 +281,16 @@ void ChatFrame::HandleSocketInput(wxSocketBase* sock) {
         buffer[len] = '\0';
         wxString message(buffer, wxConvUTF8, len);
         message.Trim();
-        
+
         if (!message.IsEmpty()) {
+            // Log locally
             LogMessage("[" + it->second.name + "] " + message);
+            // Broadcast to all clients (including sender)
+            BroadcastMessage("[" + it->second.name + "] " + message);
         }
     }
 }
 
-void ChatFrame::SendMessageToClient(int clientId, const wxString& message) {
-    for (auto& pair : m_clients) {
-        if (pair.second.id == clientId) {
-            wxString msg = message + "\n";
-            pair.first->Write(msg.mb_str(), msg.length());
-            return;
-        }
-    }
-}
 
 void ChatFrame::BroadcastMessage(const wxString& message) {
     wxString msg = message + "\n";
@@ -358,9 +324,6 @@ void ChatFrame::RemoveClient(wxSocketBase* sock) {
     LogMessage("Client disconnected: " + name);
     SetStatusText(wxString::Format("%d client(s) connected", (int)m_clients.size()), 1);
     
-    if (m_selectedClientId == id) {
-        m_selectedClientId = -1;
-    }
 }
 
 void ChatFrame::LogMessage(const wxString& message) {

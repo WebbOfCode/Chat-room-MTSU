@@ -3,7 +3,7 @@
 #include <wx/wx.h>
 #include <wx/socket.h>
 
-using namespace std; // requested
+// No global using-directive needed.
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -186,8 +186,7 @@ void ClientFrame::OnSendMessage(wxCommandEvent& WXUNUSED(event)) {
         return;
     }
     
-    SendMessage(message);
-    LogMessage("[You] " + message);
+    SendMessage(message); // server will echo back
     m_messageInput->Clear();
 }
 
@@ -197,14 +196,14 @@ void ClientFrame::OnSocketEvent(wxSocketEvent& event) {
             char buffer[1024];
             m_socket->Read(buffer, sizeof(buffer) - 1);
             wxUint32 len = m_socket->LastCount();
-            
+
             if (len > 0) {
                 buffer[len] = '\0';
                 wxString message(buffer, wxConvUTF8, len);
                 message.Trim();
-                
+
                 if (!message.IsEmpty()) {
-                    LogMessage("[Server] " + message);
+                    LogMessage(message);
                 }
             }
             break;
