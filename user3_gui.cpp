@@ -1,10 +1,20 @@
-// user3_gui.cpp - Second GUI chat client (same behavior as user2_gui). Simplified.
+// user3_gui.cpp
+// Multi-User Chat Client Application (Third User)
+// 
+// This is identical to user2_gui - it's just a separate copy so you can
+// run multiple clients at the same time to test the multi-user chat.
+// Great for testing with friends or running multiple instances yourself!
+//
+// How to use:
+// 1. Make sure user1_gui (server) is running first
+// 2. Run this program
+// 3. Enter server IP and port (same as user2 uses)
+// 4. Click Connect and start chatting!
 
-#include <wx/wx.h>
-#include <wx/socket.h>
+#include <wx/wx.h>        // wxWidgets GUI framework
+#include <wx/socket.h>    // Network sockets
 
-// No global using-directive needed.
-
+// Platform-specific network headers (Windows vs Linux/Mac)
 #ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -16,12 +26,14 @@
 #include <unistd.h>
 #endif
 
+// Main chat window - same structure as user2_gui
 class ClientFrame : public wxFrame {
 public:
     ClientFrame(const wxString& title);
     ~ClientFrame();
 
 private:
+    // Event handlers
     void OnQuit(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
     void OnConnect(wxCommandEvent& event);
@@ -186,6 +198,8 @@ void ClientFrame::OnSendMessage(wxCommandEvent& WXUNUSED(event)) {
         return;
     }
     
+    // if the user types "Exit", server will echo Exit back,
+    // and we'll handle shutdown in OnSocketEvent
     SendMessage(message); // server will echo back
     m_messageInput->Clear();
 }
@@ -200,10 +214,15 @@ void ClientFrame::OnSocketEvent(wxSocketEvent& event) {
             if (len > 0) {
                 buffer[len] = '\0';
                 wxString message(buffer, wxConvUTF8, len);
-                message.Trim();
+                message.Trim(true).Trim(false);
 
                 if (!message.IsEmpty()) {
-                    LogMessage(message);
+                    if (message == "Exit") {
+                        LogMessage("Server sent Exit - closing connection.");
+                        DisconnectFromServer();
+                    } else {
+                        LogMessage(message);
+                    }
                 }
             }
             break;

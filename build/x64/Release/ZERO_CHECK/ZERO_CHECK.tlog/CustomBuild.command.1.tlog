@@ -1,0 +1,10 @@
+^C:\USERS\DEMAR\WORKING_PROJECTS\CHAT-MTSU\BUILD\CMAKEFILES\F1177D508B422D5E4293F4E658D12820\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/demar/WORKING_PROJECTS/CHAT-MTSU -BC:/Users/demar/WORKING_PROJECTS/CHAT-MTSU/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/demar/WORKING_PROJECTS/CHAT-MTSU/build/ChatRoomMTSU.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

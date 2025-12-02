@@ -1,0 +1,6 @@
+C:/Users/demar/WORKING_PROJECTS/CHAT-MTSU/build/CMakeFiles/user1_gui.dir
+C:/Users/demar/WORKING_PROJECTS/CHAT-MTSU/build/CMakeFiles/user2_gui.dir
+C:/Users/demar/WORKING_PROJECTS/CHAT-MTSU/build/CMakeFiles/user3_gui.dir
+C:/Users/demar/WORKING_PROJECTS/CHAT-MTSU/build/CMakeFiles/INSTALL.dir
+C:/Users/demar/WORKING_PROJECTS/CHAT-MTSU/build/CMakeFiles/ALL_BUILD.dir
+C:/Users/demar/WORKING_PROJECTS/CHAT-MTSU/build/CMakeFiles/ZERO_CHECK.dir
